@@ -1,0 +1,52 @@
+{
+  "name": "@local/dsh-chat-mode-ko",
+  "version": "0.2.0-ko.1",
+  "type": "module",
+  "description": "DSH용 채팅/작업 이중 모드(한국어판). 채팅 모드는 DeepSeek 공식 웹 채팅을 Electron webview 로 띄워 DSH API 를 호출하지 않고 토큰도 쓰지 않습니다. 작업 모드는 DSH 기본 에이전트 UI 입니다.",
+  "license": "MIT",
+  "author": "artists2 (Korean translation)",
+  "contributors": [
+    "Starp1ume (original plugin, MIT)"
+  ],
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "chat", "korean", "locale"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/artists2/dsh-chat-mode-ko.git"
+  },
+  "homepage": "https://github.com/artists2/dsh-chat-mode-ko#readme",
+  "bugs": {
+    "url": "https://github.com/artists2/dsh-chat-mode-ko/issues"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "NOTICE.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}
