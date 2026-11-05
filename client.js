@@ -1330,6 +1330,10 @@ window.__ModuleLoader__.load({
           // about:blank#<lease> 是主进程 will-attach-webview 放行的握手条件
           view.setAttribute('name', reservation.lease);
           view.setAttribute('partition', reservation.partition);
+          // allowpopups 가 없으면 Electron 이 게스트의 window.open 을 그 자리에서 막아
+          // 버려서 "새 창 열기 요청" 자체가 올라오지 않는다(출처 링크가 안 열리던 원인).
+          // 이 속성은 창을 실제로 띄우지 않고, 메인 프로세스의 열기 요청 처리로 넘긴다.
+          view.setAttribute('allowpopups', '');
           view.setAttribute('src', 'about:blank#' + reservation.lease);
           view.setAttribute('data-sidebar-browser-frame', 'webview');
           view.className = 'dsh-chat-mode-frame';
