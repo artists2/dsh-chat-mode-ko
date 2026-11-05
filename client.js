@@ -382,6 +382,91 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // ------------------------------------------------------------------
+    // 출처 링크 열기
+    // ------------------------------------------------------------------
+    // 채팅 모드는 DeepSeek 공식 웹 채팅을 <webview> 에 띄운다. 웹뷰에는 팝업 창이
+    // 없어서 페이지가 window.open(또는 target="_blank") 으로 여는 링크(답변의
+    // 출처/인용 링크)가 그냥 사라진다. 그래서 두 갈래로 받아 시스템 기본
+    // 브라우저로 넘긴다.
+    //   1) 메인 프로세스 브리지가 알려 주는 "새 창 열기 요청"(가능한 경우)
+    //   2) 웹뷰가 외부 사이트로 이동하려는 경우(같은 페이지 안에서 이동하는 링크)
+    // DeepSeek 공식 사이트(*.deepseek.com) 안에서의 이동은 그대로 둔다. 로그인과
+    // OAuth 흐름이 그 안에서 일어나기 때문이다. 링크 본문은 읽지 않고 URL 만 넘긴다.
+    function isOpenableExternalUrl(value) {
+      if (typeof value !== 'string') return false;
+      const text = value.trim();
+      if (!text || text.length > 2048) return false;
+      if (/\s/.test(text)) return false;
+      return /^https?:\/\//i.test(text);
+    }
+
+    function isDeepseekNavigationTarget(url) {
+      try {
+        const host = new URL(url).hostname;
+        return host === 'deepseek.com' || host.endsWith('.deepseek.com');
+      } catch {
+        return false;
+      }
+    }
+
+    function requestOpenExternal(url) {
+      if (!isOpenableExternalUrl(url)) return;
+      try {
+        Promise.resolve(
+          fetch('/chat-mode-ko/open', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ url: url.trim() }),
+          }),
+        ).catch(() => {});
+      } catch {
+        // fetch 가 막힌 환경에서는 조용히 무시한다(채팅 자체는 계속 동작).
+      }
+    }
+
+    let detachOpenRequests = null;
+
+    function watchOpenRequests(view, leaseId) {
+      const disposers = [];
+      try {
+        const carrier = globalThis.dshDesktop;
+        const bridgeApi = carrier ? carrier.browser : null;
+        if (bridgeApi && typeof bridgeApi.onOpenRequested === 'function' && typeof leaseId === 'string') {
+          const off = bridgeApi.onOpenRequested(leaseId, (url) => requestOpenExternal(url));
+          if (typeof off === 'function') disposers.push(off);
+        }
+      } catch {
+        // 이 브리지가 콜백을 지원하지 않으면 아래 will-navigate 경로만 쓴다.
+      }
+      const onWillNavigate = (event) => {
+        const target = event && typeof event.url === 'string' ? event.url : '';
+        if (!target) return;
+        if (isChatOrigin(target) || isDeepseekNavigationTarget(target)) return;
+        try {
+          event.preventDefault();
+        } catch {
+          // 취소할 수 없는 이벤트면 그냥 통과시킨다.
+        }
+        requestOpenExternal(target);
+      };
+      try {
+        view.addEventListener('will-navigate', onWillNavigate);
+        disposers.push(() => view.removeEventListener('will-navigate', onWillNavigate));
+      } catch {
+        // 이벤트를 걸 수 없는 환경이면 브리지 경로만 남는다.
+      }
+      return () => {
+        for (const dispose of disposers) {
+          try {
+            dispose();
+          } catch {
+            // 정리 실패는 무시한다.
+          }
+        }
+      };
+    }
+
     // 退出检测：只用导航事件自带的 URL（不执行页面脚本、不读页面存储）。
     // 仅当本次运行内已确认登录后才启用，避免恢复流程/首次加载的登录页被误判为"主动退出"。
     function handleSignInNavigation(url) {
@@ -915,6 +1000,10 @@ window.__ModuleLoader__.load({
         clearTimeout(inspectTimer);
         inspectTimer = null;
       }
+      if (detachOpenRequests) {
+        detachOpenRequests();
+        detachOpenRequests = null;
+      }
       if (element) {
         try {
           if (element.parentNode) element.parentNode.removeChild(element);
@@ -1329,6 +1418,9 @@ window.__ModuleLoader__.load({
 
           element = view;
           container.appendChild(view);
+          // 출처 링크: 새 창 열기 요청 + 외부 사이트로의 이동을 시스템 브라우저로 넘긴다.
+          if (detachOpenRequests) detachOpenRequests();
+          detachOpenRequests = watchOpenRequests(view, reservation.lease);
           record('webview 연결됨');
           // 遮罩兜底：8 秒还没撤掉就强制撤掉，避免一直挡住界面
           if (maskTimer) clearTimeout(maskTimer);
@@ -2468,6 +2560,7 @@ window.__ModuleLoader__.load({
 
     function apply(ctx) {
       appCtx = ctx;
+
       try {
         // 插件卸载 / apply 失败时的统一清理：撤销受控隐藏（属性 + <style>）+ 释放 webview 租约。
         // ctx.effect 的返回值即清理函数，插件卸载时由 Cordis 调用。

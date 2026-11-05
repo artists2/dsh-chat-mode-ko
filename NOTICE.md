@@ -17,6 +17,7 @@
 - 패키지 이름 `@local/dsh-chat-mode-ko`, 모듈 로더 id·슬롯 등록 id 변경
 - 원본 중국어판 행(`chat-mode`)을 비활성화하는 패치 추가
 - 한국어 README, 로케일 메타데이터, 패키지 설명 추가
+- 출처/인용 링크가 열리지 않던 문제 수정: Host 쪽에 같은 출처 경로(`POST /chat-mode-ko/open`)를 추가하고, 웹뷰의 새 창 열기 요청(`onOpenRequested`)과 외부 사이트 이동(`will-navigate`)을 받아 OS 기본 브라우저로 엽니다.
 
 ## 고지
 
